@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Torus Market Dashboard - Convex [TESTNET]</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <style>
+        /* ============================================
+           CORE STYLES - Matching VorteX DEX Theme
+           ============================================ */
+        
+        /* Purple gradient background */
+        .gradient-bg { 
+            background: linear-gradient(135deg, #6e00ff 0%, #ff00a8 100%); 
+            min-height: 100vh;
+        }
+        
+        /* Glass card effect */
+        .card-glass { 
+            background: rgba(255, 255, 255, 0.08); 
+            backdrop-filter: blur(10px); 
+            border: 1px solid rgba(255, 255, 255, 0.18); 
+        }
+        
+        /* Table row hover effect */
+        .table-row-hover:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+        
+        /* Loading spinner animation */
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .spinner {
+            border: 3px solid rgba(255, 255, 255, 0.2);
+            border-top-color: #a855f7;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        
+        /* Pulse animation for live indicator */
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .pulse {
+            animation: pulse 2s ease-in-out infinite;
+        }
+        
+        /* Price change colors */
+        .price-up { color: #4ade80; }
+        .price-down { color: #f87171; }
+        
+        /* Scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.5);
+        }
+    </style>
+</head>
+<body class="gradient-bg text-white">
+    
+    <!-- ============================================
+         HEADER SECTION
+         ============================================ -->
+    <nav class="container mx-auto px-4 py-6">
+        <div class="flex flex-col sm:flex-row justify-between items-center gap-4">
+            <!-- Logo and Title -->
+            <div class="flex items-center space-x-3">
+                <img src="https://tokens.app.pulsex.com/images/tokens/0x95B303987A60C71504D99Aa1b13B4DA07b0790ab.png" 
+                     alt="Torus" 
+                     class="w-10 h-10">
+                <div>
+                    <h1 class="text-2xl font-bold">Torus Markets</h1>
+                    <p class="text-xs text-white/60">Convex DEX Dashboard</p>
+                </div>
+                <span class="text-xs bg-orange-600 px-2 py-1 rounded-full ml-2 pulse">TESTNET</span>
+            </div>
+            
+            <!-- Status and Refresh -->
+            <div class="flex items-center space-x-4">
+                <!-- Connection Status -->
+                <div class="flex items-center space-x-2 text-sm">
+                    <span class="w-2 h-2 rounded-full bg-green-500 pulse"></span>
+                    <span class="text-white/70">Connected to Testnet</span>
+                </div>
+                
+                <!-- Refresh Button -->
+                <button onclick="refreshAllMarkets()" 
+                        id="refreshBtn"
+                        class="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors">
+                    <span id="refreshIcon">🔄</span>
+                    <span>Refresh</span>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- ============================================
+         MAIN DASHBOARD CONTENT
+         ============================================ -->
+    <main class="container mx-auto px-4 py-6">
+        
+        <!-- Stats Summary Cards -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+            <!-- Total Markets -->
+            <div class="card-glass rounded-xl p-4">
+                <p class="text-xs text-white/60 mb-1">Total Markets</p>
+                <p class="text-2xl font-bold" id="totalMarkets">--</p>
+            </div>
+            
+            <!-- Total Liquidity -->
+            <div class="card-glass rounded-xl p-4">
+                <p class="text-xs text-white/60 mb-1">Total Liquidity (CVM)</p>
+                <p class="text-2xl font-bold" id="totalLiquidity">--</p>
+            </div>
+            
+            <!-- Last Updated -->
+            <div class="card-glass rounded-xl p-4">
+                <p class="text-xs text-white/60 mb-1">Last Updated</p>
+                <p class="text-2xl font-bold" id="lastUpdated">--</p>
+            </div>
+        </div>
+        
+        <!-- Markets Table -->
+        <div class="card-glass rounded-2xl p-6 overflow-hidden">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-xl font-bold">All Torus Markets</h2>
+                <p class="text-sm text-white/60">
+                    Data from <code class="bg-white/10 px-2 py-1 rounded">torus.exchange/markets</code>
+                </p>
+            </div>
+            
+            <!-- Loading State -->
+            <div id="loadingState" class="flex flex-col items-center justify-center py-12">
+                <div class="spinner mb-4"></div>
+                <p class="text-white/60">Loading markets from blockchain...</p>
+            </div>
+            
+            <!-- Error State -->
+            <div id="errorState" class="hidden flex flex-col items-center justify-center py-12">
+                <p class="text-red-400 text-4xl mb-4">⚠️</p>
+                <p class="text-red-400 font-medium mb-2">Failed to load markets</p>
+                <p class="text-white/60 text-sm mb-4" id="errorMessage">Unknown error</p>
+                <button onclick="refreshAllMarkets()" 
+                        class="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-lg text-sm">
+                    Try Again
+                </button>
+            </div>
+            
+            <!-- Markets Table -->
+            <div id="marketsTable" class="hidden overflow-x-auto">
+                <table class="w-full">
+                    <thead>
+                        <tr class="text-left text-white/60 text-sm border-b border-white/10">
+                            <th class="pb-4 pr-4">#</th>
+                            <th class="pb-4 pr-4">Token Name</th>
+                            <th class="pb-4 pr-4 text-center">Price (CVM)</th>
+                            <th class="pb-4 pr-4">Market ID</th>
+                            <th class="pb-4 pr-4">Token ID</th>
+                            <th class="pb-4 pr-4 text-right">Token Liquidity</th>
+                            <th class="pb-4 text-right">CVM Liquidity</th>
+                        </tr>
+                    </thead>
+                    <tbody id="marketsTableBody">
+                        <!-- Market rows will be inserted here by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Empty State -->
+            <div id="emptyState" class="hidden flex flex-col items-center justify-center py-12">
+                <p class="text-white/40 text-4xl mb-4">📭</p>
+                <p class="text-white/60">No markets found on the network</p>
+            </div>
+        </div>
+        
+        <!-- Footer Info -->
+        <div class="mt-8 text-center text-white/40 text-sm">
+            <p>Connected to: <code class="bg-white/10 px-2 py-1 rounded">https://mikera1337-convex-testnet.hf.space</code></p>
+            <p class="mt-2">Torus Market Dashboard v1.0 | Data refreshes on demand</p>
+        </div>
+    </main>
+
+    <!-- ============================================
+         JAVASCRIPT - Market Data Fetching
+         ============================================ -->
+    <script>
+        // ============================================
+        // CONFIGURATION
+        // ============================================
+        
+        // Convex Testnet API endpoint
+        const CONVEX_URL = 'https://mikera1337-convex-testnet.hf.space';
+        
+        // Store for market data
+        let marketsData = [];
+        
+        // User-defined token names (stored in localStorage)
+        // Format: { "#128": "USD", "#130": "GOLD", ... }
+        let tokenNames = {};
+        
+        // Pre-defined token names (known tokens on the network)
+        const DEFAULT_TOKEN_NAMES = {
+            "#128": "Foundation USD",
+            "#130": "Foundation GBP",
+            "#207": "Nessie"
+        };
+        
+        // ============================================
+        // INITIALIZATION
+        // ============================================
+        
+        // Run when page loads
+        window.onload = function() {
+            console.log('🚀 Torus Market Dashboard v1.0 initialized');
+            loadTokenNames();
+            refreshAllMarkets();
+        };
+        
+        // Load user-defined token names from localStorage
+        function loadTokenNames() {
+            // Start with default token names
+            tokenNames = { ...DEFAULT_TOKEN_NAMES };
+            
+            // Merge with any user-defined names (user names override defaults)
+            const saved = localStorage.getItem('torus_token_names');
+            if (saved) {
+                const userNames = JSON.parse(saved);
+                tokenNames = { ...tokenNames, ...userNames };
+                console.log('✓ Loaded token names:', tokenNames);
+            } else {
+                console.log('✓ Using default token names:', tokenNames);
+            }
+        }
+        
+        // Save token names to localStorage
+        function saveTokenNames() {
+            localStorage.setItem('torus_token_names', JSON.stringify(tokenNames));
+            console.log('✓ Saved token names');
+        }
+        
+        // ============================================
+        // API FUNCTIONS - Querying the Blockchain
+        // ============================================
+        
+        /**
+         * Execute a query on the Convex blockchain
+         * @param {string} source - The Convex Lisp query to execute
+         * @returns {Promise<any>} - The query result
+         */
+        async function convexQuery(source) {
+            const response = await fetch(`${CONVEX_URL}/api/v1/query`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    address: 1,  // Use account #1 for queries (doesn't matter for read-only)
+                    source: source 
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (data.errorCode) {
+                throw new Error(data.value || data.errorCode);
+            }
+            
+            return data.value;
+        }
+        
+        /**
+         * Fetch all markets from the Torus exchange contract
+         * @returns {Promise<Object>} - Map of token address -> market address
+         */
+        async function fetchAllMarkets() {
+            console.log('📡 Fetching all markets from torus.exchange...');
+            const markets = await convexQuery('@torus.exchange/markets');
+            console.log('✓ Found markets:', markets);
+            return markets;
+        }
+        
+        /**
+         * Fetch detailed info for a single market
+         * @param {string} tokenAddress - The token contract address (e.g., "#128")
+         * @param {string} marketAddress - The market contract address (e.g., "#129")
+         * @returns {Promise<Object>} - Market details including price and liquidity
+         */
+        async function fetchMarketInfo(tokenAddress, marketAddress) {
+            // Query multiple values in a single call for efficiency
+            const query = `{
+                :token-balance (call ${tokenAddress} (balance ${marketAddress}))
+                :cvm-balance (balance ${marketAddress})
+                :price (call ${marketAddress} (price))
+            }`;
+            
+            const result = await convexQuery(query);
+            
+            // Convert from smallest units to human-readable
+            // Tokens: 6 decimals (divide by 1,000,000)
+            // CVM: 9 decimals (divide by 1,000,000,000)
+            return {
+                tokenAddress: tokenAddress,
+                marketAddress: marketAddress,
+                tokenBalance: (result['token-balance'] || 0) / 1000000,
+                cvmBalance: (result['cvm-balance'] || 0) / 1000000000,
+                price: result['price'] ? result['price'] / 1000000000 : 0
+            };
+        }
+        
+        // ============================================
+        // MAIN REFRESH FUNCTION
+        // ============================================
+        
+        /**
+         * Refresh all market data from the blockchain
+         */
+        async function refreshAllMarkets() {
+            console.log('🔄 Refreshing all markets...');
+            
+            // Show loading state
+            showState('loading');
+            
+            // Disable refresh button
+            const refreshBtn = document.getElementById('refreshBtn');
+            refreshBtn.disabled = true;
+            refreshBtn.classList.add('opacity-50');
+            document.getElementById('refreshIcon').textContent = '⏳';
+            
+            try {
+                // Step 1: Get all market addresses from Torus
+                const markets = await fetchAllMarkets();
+                
+                // Check if any markets exist
+                if (!markets || Object.keys(markets).length === 0) {
+                    showState('empty');
+                    updateStats(0, 0);
+                    return;
+                }
+                
+                // Step 2: Fetch detailed info for each market
+                marketsData = [];
+                let totalCvmLiquidity = 0;
+                
+                // Convert markets object to array of promises
+                const marketPromises = Object.entries(markets).map(async ([tokenAddr, marketAddr]) => {
+                    try {
+                        const info = await fetchMarketInfo(tokenAddr, '#' + marketAddr);
+                        totalCvmLiquidity += info.cvmBalance;
+                        return info;
+                    } catch (error) {
+                        console.warn(`Failed to fetch market ${tokenAddr}:`, error);
+                        return {
+                            tokenAddress: tokenAddr,
+                            marketAddress: '#' + marketAddr,
+                            tokenBalance: 0,
+                            cvmBalance: 0,
+                            price: 0,
+                            error: true
+                        };
+                    }
+                });
+                
+                // Wait for all market info to be fetched
+                marketsData = await Promise.all(marketPromises);
+                
+                // Sort by CVM liquidity (highest first)
+                marketsData.sort((a, b) => b.cvmBalance - a.cvmBalance);
+                
+                // Step 3: Update the UI
+                renderMarketsTable();
+                updateStats(marketsData.length, totalCvmLiquidity);
+                showState('table');
+                
+                console.log('✓ Markets refreshed successfully');
+                
+            } catch (error) {
+                console.error('❌ Failed to refresh markets:', error);
+                showError(error.message);
+            } finally {
+                // Re-enable refresh button
+                refreshBtn.disabled = false;
+                refreshBtn.classList.remove('opacity-50');
+                document.getElementById('refreshIcon').textContent = '🔄';
+            }
+        }
+        
+        // ============================================
+        // UI RENDERING FUNCTIONS
+        // ============================================
+        
+        /**
+         * Show a specific UI state (loading, error, table, empty)
+         * @param {string} state - The state to show
+         */
+        function showState(state) {
+            document.getElementById('loadingState').classList.add('hidden');
+            document.getElementById('errorState').classList.add('hidden');
+            document.getElementById('marketsTable').classList.add('hidden');
+            document.getElementById('emptyState').classList.add('hidden');
+            
+            switch(state) {
+                case 'loading':
+                    document.getElementById('loadingState').classList.remove('hidden');
+                    break;
+                case 'error':
+                    document.getElementById('errorState').classList.remove('hidden');
+                    break;
+                case 'table':
+                    document.getElementById('marketsTable').classList.remove('hidden');
+                    break;
+                case 'empty':
+                    document.getElementById('emptyState').classList.remove('hidden');
+                    break;
+            }
+        }
+        
+        /**
+         * Show error state with message
+         * @param {string} message - The error message to display
+         */
+        function showError(message) {
+            document.getElementById('errorMessage').textContent = message;
+            showState('error');
+        }
+        
+        /**
+         * Update the stats summary cards
+         * @param {number} marketCount - Total number of markets
+         * @param {number} totalLiquidity - Total CVM liquidity across all markets
+         */
+        function updateStats(marketCount, totalLiquidity) {
+            document.getElementById('totalMarkets').textContent = marketCount;
+            document.getElementById('totalLiquidity').textContent = formatNumber(totalLiquidity) + ' CVM';
+            document.getElementById('lastUpdated').textContent = new Date().toLocaleTimeString();
+        }
+        
+        /**
+         * Render the markets table with current data
+         */
+        function renderMarketsTable() {
+            const tbody = document.getElementById('marketsTableBody');
+            tbody.innerHTML = '';
+            
+            marketsData.forEach((market, index) => {
+                const row = document.createElement('tr');
+                row.className = 'table-row-hover border-b border-white/5 transition-colors';
+                
+                // Get user-defined name or show placeholder
+                const tokenName = tokenNames[market.tokenAddress] || '—';
+                const nameClass = tokenNames[market.tokenAddress] ? 'text-white' : 'text-white/40 italic';
+                
+                row.innerHTML = `
+                    <td class="py-4 pr-4 text-white/60">${index + 1}</td>
+                    <td class="py-4 pr-4">
+                        <span class="${nameClass}">${tokenName}</span>
+                    </td>
+                    <td class="py-4 pr-4 text-center font-mono">
+                        ${market.error ? '<span class="text-red-400">Error</span>' : formatPrice(market.price)}
+                    </td>
+                    <td class="py-4 pr-4">
+                        <code class="bg-white/10 px-2 py-1 rounded text-sm">${market.marketAddress}</code>
+                    </td>
+                    <td class="py-4 pr-4">
+                        <code class="bg-white/10 px-2 py-1 rounded text-sm">${market.tokenAddress}</code>
+                    </td>
+                    <td class="py-4 pr-4 text-right font-mono">
+                        ${market.error ? '—' : formatNumber(market.tokenBalance)}
+                    </td>
+                    <td class="py-4 text-right font-mono">
+                        ${market.error ? '—' : formatNumber(market.cvmBalance)}
+                    </td>
+                `;
+                
+                tbody.appendChild(row);
+            });
+        }
+        
+        // ============================================
+        // UTILITY FUNCTIONS
+        // ============================================
+        
+        /**
+         * Format a number with commas and appropriate decimals
+         * @param {number} num - The number to format
+         * @returns {string} - Formatted number string
+         */
+        function formatNumber(num) {
+            if (num === 0) return '0.00';
+            if (num < 0.000001) return '< 0.000001';
+            if (num < 1) return num.toFixed(6);
+            if (num < 1000) return num.toFixed(2);
+            return num.toLocaleString('en-US', { maximumFractionDigits: 2 });
+        }
+        
+        /**
+         * Format a price value
+         * @param {number} price - The price to format
+         * @returns {string} - Formatted price string
+         */
+        function formatPrice(price) {
+            if (price === 0) return '<span class="text-white/40">No liquidity</span>';
+            if (price < 0.000001) return '< 0.000001';
+            if (price < 1) return price.toFixed(6);
+            return price.toFixed(4);
+        }
+    </script>
+</body>
+</html>
