@@ -559,7 +559,7 @@
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
-                    address: 1,  // Use account #1 for queries (doesn't matter for read-only)
+                    address: 11,  // Query as account #11: #1 has zero balance on testnet, so its queries fail with "Out of juice"
                     source: source 
                 })
             });
