@@ -262,8 +262,8 @@
                             <th class="pb-4 pr-4 text-center">Price (CVM)</th>
                             <th class="pb-4 pr-4">Market ID</th>
                             <th class="pb-4 pr-4">Token ID</th>
-                            <th class="pb-4 pr-4 text-right">Token Liquidity</th>
-                            <th class="pb-4 text-right">CVM Liquidity</th>
+                            <th class="pb-4 pr-4 text-right">Tokens in Pool</th>
+                            <th class="pb-4 text-right">CVM in Pool</th>
                         </tr>
                     </thead>
                     <tbody id="marketsTableBody">
@@ -596,19 +596,22 @@
                 :token-balance (call ${tokenAddress} (balance ${marketAddress}))
                 :cvm-balance (balance ${marketAddress})
                 :price (call ${marketAddress} (price))
+                :decimals (call ${tokenAddress} (decimals))
             }`;
             
             const result = await convexQuery(query);
             
             // Convert from smallest units to human-readable
-            // Tokens: 6 decimals (divide by 1,000,000)
+            // Tokens: decimals come from the token contract
             // CVM: 9 decimals (divide by 1,000,000,000)
+            const tokenScale = 10 ** (result['decimals'] || 0);
             return {
                 tokenAddress: tokenAddress,
                 marketAddress: marketAddress,
-                tokenBalance: (result['token-balance'] || 0) / 1000000,
+                tokenBalance: (result['token-balance'] || 0) / tokenScale,
                 cvmBalance: (result['cvm-balance'] || 0) / 1000000000,
-                price: result['price'] ? result['price'] / 1000000000 : 0
+                // On-chain price is copper per smallest token unit
+                price: result['price'] ? result['price'] * tokenScale / 1000000000 : 0
             };
         }
         
@@ -673,7 +676,7 @@
                 
                 // Step 3: Update the UI
                 renderMarketsTable();
-                updateStats(marketsData.length, totalCvmLiquidity);
+                updateStats(marketsData.length, totalCvmLiquidity * 2);  // both sides of each pool, valued in CVM
                 
                 console.log('✓ Markets refreshed successfully');
                 
